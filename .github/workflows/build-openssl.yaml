@@ -54,11 +54,23 @@ jobs:
           tar -xzf openssl-3.5.0.tar.gz
           Move-Item openssl-openssl-3.5.0 openssl-src
 
-      - name: Build OpenSSL
+      - name: List files in openssl-src
+        run: Get-ChildItem -Path .\openssl-src
+        shell: pwsh
+
+      - name: Configure OpenSSL (generate Makefile)
         working-directory: ./openssl-src
         run: |
           perl Configure VC-WIN64A
-          nmake
+          if (!(Test-Path Makefile)) {
+            Write-Host "Makefile generation failed. Exiting."
+            exit 1
+          }
+        shell: pwsh
+
+      - name: Build OpenSSL
+        working-directory: ./openssl-src
+        run: nmake
 
       - name: Upload Windows OpenSSL binary
         uses: actions/upload-artifact@v4
