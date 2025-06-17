@@ -39,8 +39,14 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Install Chocolatey packages
-        run: choco install strawberryperl nasm -y
+      - name: Install NASM
+        run: choco install nasm -y
+
+      - name: Install Strawberry Perl
+        run: choco install strawberryperl -y
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Download OpenSSL 3.5.0 source
         run: |
