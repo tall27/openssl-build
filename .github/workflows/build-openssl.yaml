@@ -33,41 +33,44 @@ jobs:
           path: openssl-src/apps/openssl
 
   build-windows:
-    name: Build for Windows (x64)
-    runs-on: windows-latest
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          choco install strawberryperl nasm -y
-          echo "C:\Strawberry\perl\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
-          echo "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Append
-
-      - name: Set up MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Download OpenSSL 3.5.0 source
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.tar.gz" -OutFile "openssl-3.5.0.tar.gz"
-          tar -xzf openssl-3.5.0.tar.gz
-          Move-Item openssl-openssl-3.5.0 openssl-src
-
-      - name: Verify Perl, NASM, and nmake availability
-        run: |
-          perl -v
-          nasm -v
-          nmake /?
+      name: Build for Windows (x64)
+      runs-on: windows-latest
+      steps:
+        - name: Checkout source
+          uses: actions/checkout@v4
       
-      - name: Build OpenSSL
-        working-directory: ./openssl-src
-        run: |
-          perl Configure VC-WIN64A
-          nmake
-
-      - name: Upload Windows OpenSSL binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: openssl-windows
-          path: openssl-src/apps/openssl.exe
+        - name: Install Strawberry Perl and NASM
+          run: |
+            choco install strawberryperl nasm -y
+      
+        - name: Add NASM and Perl to PATH
+          run: |
+            echo "C:\Strawberry\perl\bin" >> $env:GITHUB_PATH
+            echo "C:\Program Files\NASM" >> $env:GITHUB_PATH
+      
+        - name: Set up MSVC environment
+          uses: ilammy/msvc-dev-cmd@v1
+      
+        - name: Download OpenSSL 3.5.0 source
+          run: |
+            Invoke-WebRequest -Uri "https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.tar.gz" -OutFile "openssl-3.5.0.tar.gz"
+            tar -xzf openssl-3.5.0.tar.gz
+            Move-Item openssl-openssl-3.5.0 openssl-src
+      
+        - name: Confirm build tools are on PATH
+          run: |
+            perl -v
+            nasm -v
+            nmake /?
+      
+        - name: Build OpenSSL
+          working-directory: ./openssl-src
+          run: |
+            perl Configure VC-WIN64A
+            nmake
+      
+        - name: Upload Windows OpenSSL binary
+          uses: actions/upload-artifact@v4
+          with:
+            name: openssl-windows
+            path: openssl-src/apps/openssl.exe
