@@ -46,6 +46,7 @@ jobs:
         run: |
           choco install nasm -y
           choco install strawberryperl -y
+          refreshenv
 
       - name: Download OpenSSL
         shell: powershell
