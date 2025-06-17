@@ -1,4 +1,4 @@
-name: OpenSSL 3.5.0 Build
+name: OpenSSL 3.5 (claude)
 
 on: [push, pull_request, workflow_dispatch]
 
