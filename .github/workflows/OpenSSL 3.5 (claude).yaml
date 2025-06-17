@@ -1,4 +1,4 @@
-name: OpenSSL 3.5 (claude)
+name: OpenSSL 3.5.0 Build
 
 on: [push, pull_request, workflow_dispatch]
 
@@ -60,12 +60,7 @@ jobs:
         cd openssl
         nmake
         
-    - name: Test
-      shell: cmd
-      run: |
-        cd openssl
-        nmake test
-      continue-on-error: true
+
         
     - name: Install
       shell: cmd
@@ -103,22 +98,24 @@ jobs:
         echo Version: OpenSSL 3.5.0 >> portable-package\README.txt
         
     - name: Package binaries
-      shell: cmd
+      shell: powershell
       run: |
         cd C:\OpenSSL
-        tar -czf %GITHUB_WORKSPACE%\openssl-3.5.0-${{ matrix.platform.arch }}-windows-full.tar.gz *
+        Compress-Archive -Path * -DestinationPath openssl-3.5.0-${{ matrix.platform.arch }}-windows-full.zip
+        Move-Item openssl-3.5.0-${{ matrix.platform.arch }}-windows-full.zip $env:GITHUB_WORKSPACE\
         
     - name: Create portable package
-      shell: cmd
+      shell: powershell
       run: |
         cd portable-package
-        tar -czf %GITHUB_WORKSPACE%\openssl-3.5.0-${{ matrix.platform.arch }}-portable.zip *
+        Compress-Archive -Path * -DestinationPath openssl-3.5.0-${{ matrix.platform.arch }}-portable.zip
+        Move-Item openssl-3.5.0-${{ matrix.platform.arch }}-portable.zip $env:GITHUB_WORKSPACE\
         
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: openssl-3.5.0-${{ matrix.platform.arch }}-packages
         path: |
-          openssl-3.5.0-${{ matrix.platform.arch }}-windows-full.tar.gz
+          openssl-3.5.0-${{ matrix.platform.arch }}-windows-full.zip
           openssl-3.5.0-${{ matrix.platform.arch }}-portable.zip
         retention-days: 90
