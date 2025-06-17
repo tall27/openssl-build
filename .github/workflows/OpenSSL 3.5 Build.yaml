@@ -1,4 +1,4 @@
-name: OpenSSL 3.5 Build
+name: OpenSSL 3.5 (claude)
 on:
   workflow_dispatch:
     inputs:
