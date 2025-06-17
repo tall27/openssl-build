@@ -48,29 +48,36 @@ jobs:
       - name: Set up MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Download OpenSSL 3.5.0 source
+      - name: Download and Extract OpenSSL 3.5.0 source
+        shell: pwsh
         run: |
           Invoke-WebRequest -Uri "https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.tar.gz" -OutFile "openssl-3.5.0.tar.gz"
           tar -xzf openssl-3.5.0.tar.gz
-          Move-Item openssl-openssl-3.5.0 openssl-src
+          Rename-Item -Path "openssl-openssl-3.5.0" -NewName "openssl-src"
 
-      - name: List files in openssl-src
-        run: Get-ChildItem -Path .\openssl-src
-        shell: pwsh
+      - name: Debug Directory Contents
+        run: Get-ChildItem -Recurse -Path openssl-src
 
-      - name: Configure OpenSSL (generate Makefile)
+      - name: Configure OpenSSL
         working-directory: ./openssl-src
         run: |
           perl Configure VC-WIN64A
-          if (!(Test-Path Makefile)) {
-            Write-Host "Makefile generation failed. Exiting."
-            exit 1
-          }
-        shell: pwsh
+        shell: cmd
+
+      - name: Check for Makefile
+        working-directory: ./openssl-src
+        run: |
+          if not exist Makefile (
+            echo MAKEFILE not found.
+            dir
+            exit /b 1
+          )
+        shell: cmd
 
       - name: Build OpenSSL
         working-directory: ./openssl-src
         run: nmake
+        shell: cmd
 
       - name: Upload Windows OpenSSL binary
         uses: actions/upload-artifact@v4
