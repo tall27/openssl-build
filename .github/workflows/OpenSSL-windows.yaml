@@ -1,0 +1,73 @@
+name: OpenSSL 3.5 Build
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (Debug/Release)'
+        required: true
+        default: 'Release'
+      architecture:
+        description: 'Target architecture (x64/x86)'
+        required: true
+        default: 'x64'
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: Setup Visual Studio
+        uses: microsoft/setup-msbuild@v1.0
+        with:
+          vs-version: '2022'
+
+      - name: Install NASM
+        run: |
+          Invoke-WebRequest -Uri "https://www.nasm.us/pub/nasm/releasebuilds/2.16.01/win64/nasm-2.16.01-installer-x64.exe" -OutFile "nasm-installer.exe"
+          .\nasm-installer.exe /S
+          $env:PATH += ";C:\Program Files\NASM"
+
+      - name: Install Strawberry Perl
+        run: |
+          Invoke-WebRequest -Uri "https://strawberryperl.com/download/5.32.1.1/strawberry-perl-5.32.1.1-64bit.msi" -OutFile "perl-installer.msi"
+          Start-Process "msiexec.exe" -ArgumentList "/i perl-installer.msi /quiet" -Wait
+          $env:PATH += ";C:\Strawberry\perl\bin"
+
+      - name: Configure OpenSSL
+        run: |
+          cd openssl
+          perl Configure VC-WIN64A no-shared --prefix=C:\OpenSSL --openssldir=C:\OpenSSL\ssl
+          if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+          }
+
+      - name: Build OpenSSL
+        run: |
+          nmake
+          if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+          }
+
+      - name: Run Tests
+        run: |
+          nmake test
+          if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+          }
+
+      - name: Verify Installation
+        run: |
+          C:\OpenSSL\bin\openssl version
+          C:\OpenSSL\bin\openssl list -signature-algorithms
+
+      - name: Archive Artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: openssl
+          path: C:\OpenSSL
