@@ -1,0 +1,116 @@
+# .github/workflows/debug-openssl-fixed.yml
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+env:
+  ACTIONS_STEP_DEBUG: true
+  ACTIONS_RUNNER_DEBUG: true
+
+jobs:
+  build-windows:
+    name: Windows Build & Debug
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up VS & tools
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install NASM & Perl (PowerShell)
+        shell: pwsh
+        run: |
+          choco install nasm -y --no-progress
+          choco install strawberryperl -y --no-progress
+
+          # import refreshenv function
+          $profile = Join-Path $env:ChocolateyInstall 'helpers\chocolateyProfile.psm1'
+          Import-Module $profile
+
+          # actually update this process's PATH
+          refreshenv
+
+      - name: Debug PATH & NASM
+        shell: pwsh
+        run: |
+          Write-Host '=== PATH entries ==='
+          $env:Path -split ';' | ForEach-Object { Write-Host " - $_" }
+
+          Write-Host ''
+          Write-Host '=== locate nasm.exe ==='
+          $n = Get-Command nasm -ErrorAction SilentlyContinue
+          if (!$n) {
+            Write-Error "✗ nasm was not found on PATH"
+            exit 1
+          }
+          Write-Host "✔ nasm located at: $($n.Path)"
+          Write-Host '✎ nasm version:'
+          nasm -v
+
+      - name: Fetch & Unpack OpenSSL
+        shell: pwsh
+        run: |
+          curl -L 'https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.tar.gz' -o openssl.tar.gz
+          tar -xzf openssl.tar.gz
+          Rename-Item openssl-openssl-3.5.0 openssl-src
+
+      - name: Configure & Build
+        shell: pwsh
+        run: |
+          Push-Location openssl-src
+          perl Configure VC-WIN64A --prefix="$PWD\install" > configure-win.log 2>&1
+          Write-Host "→ Configure exit code: $LASTEXITCODE"
+          nmake -nologo -noprogress > make-win.log 2>&1
+          Write-Host "→ Make exit code: $LASTEXITCODE"
+          Pop-Location
+
+      - name: Upload Windows logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-logs
+          path: |
+            openssl-src\configure-win.log
+            openssl-src\make-win.log
+
+  build-linux:
+    name: Linux Build & Debug
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps & Debug PATH
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential nasm perl
+          echo '=== $PATH entries ==='
+          printf '%s\n' ${PATH//:/\\n}
+          which nasm || { echo '✗ nasm not found'; exit 1; }
+          nasm -v
+
+      - name: Fetch & Unpack OpenSSL
+        run: |
+          curl -L https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.tar.gz \
+            -o openssl.tar.gz
+          tar -xzf openssl.tar.gz
+          mv openssl-openssl-3.5.0 openssl-src
+
+      - name: Configure & Build
+        run: |
+          cd openssl-src
+          ./Configure linux-x86_64 --prefix=$PWD/install > configure-linux.log 2>&1
+          echo "→ Configure exit code: ${PIPESTATUS[0]}"
+          make -j$(nproc) > make-linux.log 2>&1
+          echo "→ Make exit code: ${PIPESTATUS[0]}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-logs
+          path: |
+            openssl-src/configure-linux.log
+            openssl-src/make-linux.log
