@@ -20,11 +20,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Download OpenSSL 3.5.0 Source
+    - name: Download and Setup OpenSSL Source
+      shell: cmd
       run: |
+        echo Downloading OpenSSL 3.5.0...
         curl -L -o openssl.zip https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.zip
+        echo Extracting archive...
         tar -xf openssl.zip
-        move openssl-openssl-3.5.0 openssl
+        echo Renaming directory...
+        ren openssl-openssl-3.5.0 openssl
+        echo Verifying directory exists...
+        dir openssl
         
     - uses: ilammy/msvc-dev-cmd@v1
       with:
@@ -35,85 +41,78 @@ jobs:
         platform: ${{ matrix.platform.arch }}
         
     - name: Setup Perl
-      run: |
-        choco install strawberryperl -y
-        refreshenv
+      shell: cmd
+      run: choco install strawberryperl -y
         
     - name: Configure
+      shell: cmd
       run: |
         cd openssl
-        if ("${{ matrix.platform.arch }}" -eq "win64") {
+        if "${{ matrix.platform.arch }}"=="win64" (
           perl Configure VC-WIN64A ${{ matrix.platform.config }}
-        } else {
+        ) else (
           perl Configure VC-WIN32 ${{ matrix.platform.config }}
-        }
+        )
         
     - name: Build
+      shell: cmd
       run: |
         cd openssl
         nmake
         
     - name: Test
+      shell: cmd
       run: |
         cd openssl
         nmake test
       continue-on-error: true
         
     - name: Install
+      shell: cmd
       run: |
         cd openssl
         nmake install
         
-    - name: Verify
-      run: |
-        C:\OpenSSL\bin\openssl.exe version
-        
     - name: Create portable executable
+      shell: cmd
       run: |
-        echo "Creating portable OpenSSL executable..."
-        
-        # Copy and rename the static executable to standard name
+        echo Creating portable OpenSSL executable...
         copy C:\OpenSSL\bin\openssl.exe openssl.exe
         
-        # Verify it's truly standalone
-        echo "Testing portable executable..."
-        .\openssl.exe version
+        echo Testing portable executable...
+        openssl.exe version
         
-        # Create a minimal package with just the portable exe and readme
         mkdir portable-package
         copy openssl.exe portable-package\
         
-        # Add a README for the portable version
-        echo "OpenSSL 3.5.0 Portable - ${{ matrix.platform.arch }}" > portable-package\README.txt
-        echo "=======================================" >> portable-package\README.txt
-        echo "" >> portable-package\README.txt
-        echo "This is a standalone portable version of OpenSSL 3.5.0" >> portable-package\README.txt
-        echo "No installation required - just run the executable." >> portable-package\README.txt
-        echo "" >> portable-package\README.txt
-        echo "Usage: openssl.exe [command] [options]" >> portable-package\README.txt
-        echo "" >> portable-package\README.txt
-        echo "Examples:" >> portable-package\README.txt
-        echo "  openssl.exe version" >> portable-package\README.txt
-        echo "  openssl.exe list -digest-algorithms" >> portable-package\README.txt
-        echo "  openssl.exe genrsa -out private.key 2048" >> portable-package\README.txt
-        echo "  openssl.exe req -new -x509 -key private.key -out cert.pem -days 365" >> portable-package\README.txt
-        echo "" >> portable-package\README.txt
-        echo "Built on: $(Get-Date)" >> portable-package\README.txt
-        echo "Platform: Windows ${{ matrix.platform.arch }}" >> portable-package\README.txt
-        echo "Version: OpenSSL 3.5.0" >> portable-package\README.txt
+        echo OpenSSL 3.5.0 Portable - %{{ matrix.platform.arch }}% > portable-package\README.txt
+        echo ======================================= >> portable-package\README.txt
+        echo. >> portable-package\README.txt
+        echo This is a standalone portable version of OpenSSL 3.5.0 >> portable-package\README.txt
+        echo No installation required - just run the executable. >> portable-package\README.txt
+        echo. >> portable-package\README.txt
+        echo Usage: openssl.exe [command] [options] >> portable-package\README.txt
+        echo. >> portable-package\README.txt
+        echo Examples: >> portable-package\README.txt
+        echo   openssl.exe version >> portable-package\README.txt
+        echo   openssl.exe list -digest-algorithms >> portable-package\README.txt
+        echo   openssl.exe genrsa -out private.key 2048 >> portable-package\README.txt
+        echo   openssl.exe req -new -x509 -key private.key -out cert.pem -days 365 >> portable-package\README.txt
+        echo. >> portable-package\README.txt
+        echo Platform: Windows ${{ matrix.platform.arch }} >> portable-package\README.txt
+        echo Version: OpenSSL 3.5.0 >> portable-package\README.txt
         
     - name: Package binaries
+      shell: cmd
       run: |
         cd C:\OpenSSL
-        echo "Creating full installation package..."
-        tar -czf openssl-3.5.0-${{ matrix.platform.arch }}-windows-full.tar.gz *
-        move openssl-3.5.0-${{ matrix.platform.arch }}-windows-full.tar.gz ${{ github.workspace }}\
+        tar -czf %GITHUB_WORKSPACE%\openssl-3.5.0-${{ matrix.platform.arch }}-windows-full.tar.gz *
         
     - name: Create portable package
+      shell: cmd
       run: |
-        echo "Creating portable package..."
         cd portable-package
-        Compress-Archive -Path * -DestinationPath ${{ github.workspace }}\openssl-3.5.0-${{ matrix.platform.arch }}-portable.zip
+        tar -czf %GITHUB_WORKSPACE%\openssl-3.5.0-${{ matrix.platform.arch }}-portable.zip *
         
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
