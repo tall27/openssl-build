@@ -1,5 +1,5 @@
 # .github/workflows/build-openssl.yml
-name: OpenSSL 3.5 Build
+name: OpenSSL 3.5 (openai)
 on: [push, pull_request]
 
 env:
