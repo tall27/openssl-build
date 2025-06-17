@@ -39,45 +39,32 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Install NASM
-        run: choco install nasm -y
-
-      - name: Install Strawberry Perl
-        run: choco install strawberryperl -y
+      - name: Install dependencies
+        run: |
+          choco install strawberryperl nasm -y
+          echo "C:\Strawberry\perl\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          echo "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Append
 
       - name: Set up MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Download and Extract OpenSSL 3.5.0 source
-        shell: pwsh
+      - name: Download OpenSSL 3.5.0 source
         run: |
           Invoke-WebRequest -Uri "https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.tar.gz" -OutFile "openssl-3.5.0.tar.gz"
           tar -xzf openssl-3.5.0.tar.gz
-          Rename-Item -Path "openssl-openssl-3.5.0" -NewName "openssl-src"
+          Move-Item openssl-openssl-3.5.0 openssl-src
 
-      - name: Debug Directory Contents
-        run: Get-ChildItem -Recurse -Path openssl-src
-
-      - name: Configure OpenSSL
+      - name: Verify Perl, NASM, and nmake availability
+        run: |
+          perl -v
+          nasm -v
+          nmake /?
+      
+      - name: Build OpenSSL
         working-directory: ./openssl-src
         run: |
           perl Configure VC-WIN64A
-        shell: cmd
-
-      - name: Check for Makefile
-        working-directory: ./openssl-src
-        run: |
-          if not exist Makefile (
-            echo MAKEFILE not found.
-            dir
-            exit /b 1
-          )
-        shell: cmd
-
-      - name: Build OpenSSL
-        working-directory: ./openssl-src
-        run: nmake
-        shell: cmd
+          nmake
 
       - name: Upload Windows OpenSSL binary
         uses: actions/upload-artifact@v4
