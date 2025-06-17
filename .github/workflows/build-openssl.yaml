@@ -1,4 +1,5 @@
 # .github/workflows/build-openssl.yml
+name: OpenSSL 3.5 Build
 on: [push, pull_request]
 
 env:
