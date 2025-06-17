@@ -9,58 +9,68 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential perl wget
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential wget perl
 
       - name: Download OpenSSL
         run: wget https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.tar.gz
 
-      - name: Extract OpenSSL
+      - name: Extract
         run: tar -xzf openssl-3.5.0.tar.gz
 
-      - name: Build OpenSSL
+      - name: Build
         working-directory: openssl-openssl-3.5.0
         run: |
           ./config
           make -j$(nproc)
 
-      - name: Upload artifacts
+      - name: Upload Linux binary
         uses: actions/upload-artifact@v4
         with:
-          name: openssl-linux-bin
+          name: openssl-linux
           path: openssl-openssl-3.5.0/apps/openssl
 
   build-windows:
     runs-on: windows-2022
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Chocolatey dependencies
+      - name: Install NASM & Perl
+        shell: powershell
         run: |
           choco install nasm -y
           choco install strawberryperl -y
-        shell: powershell
 
       - name: Download OpenSSL
-        run: Invoke-WebRequest -Uri "https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.tar.gz" -OutFile "openssl-3.5.0.tar.gz"
         shell: powershell
+        run: Invoke-WebRequest -Uri "https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.tar.gz" -OutFile openssl-3.5.0.tar.gz
 
-      - name: Extract OpenSSL
+      - name: Extract
+        shell: powershell
         run: tar -xzf openssl-3.5.0.tar.gz
 
-      - name: Build OpenSSL
+      - name: Setup VS environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build
+        shell: cmd
         working-directory: openssl-openssl-3.5.0
         run: |
-          perl Configure VC-WIN64A
+          rem make nasm & perl visible in this session
           set PATH=C:\ProgramData\chocolatey\bin;C:\Strawberry\perl\bin;%PATH%
+          perl Configure VC-WIN64A
           nmake
 
-      - name: Upload artifacts
+      - name: Upload Windows binary
         uses: actions/upload-artifact@v4
         with:
-          name: openssl-windows-bin
+          name: openssl-windows
           path: openssl-openssl-3.5.0/apps/openssl.exe
