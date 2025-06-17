@@ -18,12 +18,12 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: true
 
       - name: Setup Visual Studio
-        uses: microsoft/setup-msbuild@v1.0
+        uses: microsoft/setup-msbuild@v2.0
         with:
           vs-version: '2022'
 
@@ -67,7 +67,7 @@ jobs:
           C:\OpenSSL\bin\openssl list -signature-algorithms
 
       - name: Archive Artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: openssl
           path: C:\OpenSSL
