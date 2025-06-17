@@ -24,9 +24,34 @@ jobs:
           
       - name: Download OpenSSL 3.5.0 Source
         run: |
+          Write-Host "Downloading OpenSSL 3.5.0 source..."
           Invoke-WebRequest -Uri "https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.zip" -OutFile "openssl.zip"
-          Expand-Archive -Path "openssl.zip" -DestinationPath "."
-          Rename-Item -Path "openssl-openssl-3.5.0" -NewName "openssl"
+          
+          Write-Host "Verifying download..."
+          if (!(Test-Path "openssl.zip")) {
+            throw "Failed to download openssl.zip"
+          }
+          
+          Write-Host "Extracting archive..."
+          Expand-Archive -Path "openssl.zip" -DestinationPath "." -Force
+          
+          Write-Host "Checking extracted contents..."
+          Get-ChildItem -Path "." -Directory | Where-Object { $_.Name -like "*openssl*" } | ForEach-Object { Write-Host "Found: $($_.Name)" }
+          
+          Write-Host "Renaming directory..."
+          if (Test-Path "openssl-openssl-3.5.0") {
+            Rename-Item -Path "openssl-openssl-3.5.0" -NewName "openssl"
+          } else {
+            throw "Expected directory 'openssl-openssl-3.5.0' not found"
+          }
+          
+          Write-Host "Verifying final structure..."
+          if (!(Test-Path "openssl")) {
+            throw "OpenSSL directory was not created successfully"
+          }
+          
+          Write-Host "Contents of openssl directory:"
+          Get-ChildItem -Path "openssl" | Select-Object -First 10 | ForEach-Object { Write-Host "  $($_.Name)" }
           
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -51,8 +76,16 @@ jobs:
       - name: Configure OpenSSL
         working-directory: openssl
         run: |
+          Write-Host "Current directory: $(Get-Location)"
+          Write-Host "Directory contents:"
+          Get-ChildItem | Select-Object -First 10 | ForEach-Object { Write-Host "  $($_.Name)" }
+          
+          Write-Host "Running OpenSSL Configure..."
           perl Configure VC-WIN64A no-shared --prefix=C:\OpenSSL --openssldir=C:\OpenSSL\ssl
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Error "Configure failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE 
+          }
           
       - name: Build OpenSSL
         working-directory: openssl
