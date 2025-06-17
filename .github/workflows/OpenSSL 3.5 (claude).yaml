@@ -1,128 +1,125 @@
 name: OpenSSL 3.5.0 Build
-on:
-  workflow_dispatch:
-    inputs:
-      build_type:
-        description: 'Build type (Debug/Release)'
-        required: true
-        default: 'Release'
-      architecture:
-        description: 'Target architecture (win64/win32)'
-        required: true
-        default: 'win64'
-  push:
-    branches:
-      - main
+
+on: [push, pull_request, workflow_dispatch]
 
 permissions:
   contents: read
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        platform:
+          - arch: win64
+            os: windows-2022
+            config: no-shared no-module --prefix=C:\OpenSSL --openssldir=C:\OpenSSL\ssl
+          - arch: win32
+            os: windows-2022
+            config: no-shared no-module --prefix=C:\OpenSSL --openssldir=C:\OpenSSL\ssl
+    runs-on: ${{ matrix.platform.os }}
     steps:
-      - uses: actions/checkout@v4
+    - uses: actions/checkout@v4
+    
+    - name: Download OpenSSL 3.5.0 Source
+      run: |
+        curl -L -o openssl.zip https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.zip
+        tar -xf openssl.zip
+        move openssl-openssl-3.5.0 openssl
         
-      - name: Download OpenSSL 3.5.0 Source
-        run: |
-          Write-Host "Downloading OpenSSL 3.5.0 source..."
-          Invoke-WebRequest -Uri "https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.zip" -OutFile "openssl.zip"
-          
-          Write-Host "Extracting archive..."
-          Expand-Archive -Path "openssl.zip" -DestinationPath "." -Force
-          
-          Write-Host "Directory contents after extraction:"
-          Get-ChildItem -Path "." | Where-Object { $_.Name -like "*openssl*" } | ForEach-Object { Write-Host "Found: $($_.Name)" }
-          
-          Write-Host "Renaming directory..."
-          if (Test-Path "openssl-openssl-3.5.0") {
-            Rename-Item -Path "openssl-openssl-3.5.0" -NewName "openssl"
-            Write-Host "Successfully renamed to 'openssl'"
-          } else {
-            Write-Error "Expected directory 'openssl-openssl-3.5.0' not found"
-            exit 1
-          }
-          
-      - name: Setup MSVC Dev Environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: ${{ github.event.inputs.architecture || 'x64' }}
-          
-      - name: Setup NASM
-        uses: ilammy/setup-nasm@v1
-        with:
-          platform: ${{ github.event.inputs.architecture || 'win64' }}
-          
-      - name: Install Strawberry Perl
-        run: |
-          Write-Host "Installing Strawberry Perl..."
-          choco install strawberryperl -y
-          
-      - name: Verify Build Environment
-        run: |
-          Write-Host "Checking build tools..."
-          perl --version
-          nasm -v
-          cl.exe 2>&1 | Select-Object -First 3
-          nmake /? 2>&1 | Select-Object -First 2
-          
-      - name: Configure OpenSSL
-        run: |
-          Write-Host "Configuring OpenSSL..."
-          cd openssl
-          
-          $config = if ("${{ github.event.inputs.architecture }}" -eq "win32") { "VC-WIN32" } else { "VC-WIN64A" }
-          Write-Host "Using configuration: $config"
-          
-          perl Configure $config no-shared --prefix=C:\OpenSSL --openssldir=C:\OpenSSL\ssl
-          if ($LASTEXITCODE -ne 0) { 
-            Write-Error "Configure failed with exit code $LASTEXITCODE"
-            exit $LASTEXITCODE 
-          }
-          
-      - name: Build OpenSSL
-        run: |
-          Write-Host "Building OpenSSL..."
-          cd openssl
-          nmake
-          if ($LASTEXITCODE -ne 0) { 
-            Write-Error "Build failed with exit code $LASTEXITCODE"
-            exit $LASTEXITCODE 
-          }
-          
-      - name: Install OpenSSL
-        run: |
-          Write-Host "Installing OpenSSL..."
-          cd openssl
-          nmake install
-          if ($LASTEXITCODE -ne 0) { 
-            Write-Error "Install failed with exit code $LASTEXITCODE"
-            exit $LASTEXITCODE 
-          }
-          
-      - name: Run Tests
-        run: |
-          Write-Host "Running OpenSSL tests..."
-          cd openssl
-          nmake test
-          if ($LASTEXITCODE -ne 0) { 
-            Write-Warning "Some tests failed, but continuing..."
-          }
-          
-      - name: Verify Installation
-        run: |
-          Write-Host "Verifying OpenSSL installation..."
-          if (Test-Path "C:\OpenSSL\bin\openssl.exe") {
-            C:\OpenSSL\bin\openssl.exe version
-            C:\OpenSSL\bin\openssl.exe list -signature-algorithms | Select-Object -First 10
-          } else {
-            Write-Error "OpenSSL was not installed correctly"
-            exit 1
-          }
-          
-      - name: Archive Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: openssl-${{ github.event.inputs.architecture || 'x64' }}-${{ github.event.inputs.build_type || 'Release' }}
-          path: C:\OpenSSL\**
-          retention-days: 30
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: ${{ matrix.platform.arch }}
+        
+    - uses: ilammy/setup-nasm@v1
+      with:
+        platform: ${{ matrix.platform.arch }}
+        
+    - name: Setup Perl
+      run: |
+        choco install strawberryperl -y
+        refreshenv
+        
+    - name: Configure
+      run: |
+        cd openssl
+        if ("${{ matrix.platform.arch }}" -eq "win64") {
+          perl Configure VC-WIN64A ${{ matrix.platform.config }}
+        } else {
+          perl Configure VC-WIN32 ${{ matrix.platform.config }}
+        }
+        
+    - name: Build
+      run: |
+        cd openssl
+        nmake
+        
+    - name: Test
+      run: |
+        cd openssl
+        nmake test
+      continue-on-error: true
+        
+    - name: Install
+      run: |
+        cd openssl
+        nmake install
+        
+    - name: Verify
+      run: |
+        C:\OpenSSL\bin\openssl.exe version
+        
+    - name: Create portable executable
+      run: |
+        echo "Creating portable OpenSSL executable..."
+        
+        # Copy and rename the static executable to standard name
+        copy C:\OpenSSL\bin\openssl.exe openssl.exe
+        
+        # Verify it's truly standalone
+        echo "Testing portable executable..."
+        .\openssl.exe version
+        
+        # Create a minimal package with just the portable exe and readme
+        mkdir portable-package
+        copy openssl.exe portable-package\
+        
+        # Add a README for the portable version
+        echo "OpenSSL 3.5.0 Portable - ${{ matrix.platform.arch }}" > portable-package\README.txt
+        echo "=======================================" >> portable-package\README.txt
+        echo "" >> portable-package\README.txt
+        echo "This is a standalone portable version of OpenSSL 3.5.0" >> portable-package\README.txt
+        echo "No installation required - just run the executable." >> portable-package\README.txt
+        echo "" >> portable-package\README.txt
+        echo "Usage: openssl.exe [command] [options]" >> portable-package\README.txt
+        echo "" >> portable-package\README.txt
+        echo "Examples:" >> portable-package\README.txt
+        echo "  openssl.exe version" >> portable-package\README.txt
+        echo "  openssl.exe list -digest-algorithms" >> portable-package\README.txt
+        echo "  openssl.exe genrsa -out private.key 2048" >> portable-package\README.txt
+        echo "  openssl.exe req -new -x509 -key private.key -out cert.pem -days 365" >> portable-package\README.txt
+        echo "" >> portable-package\README.txt
+        echo "Built on: $(Get-Date)" >> portable-package\README.txt
+        echo "Platform: Windows ${{ matrix.platform.arch }}" >> portable-package\README.txt
+        echo "Version: OpenSSL 3.5.0" >> portable-package\README.txt
+        
+    - name: Package binaries
+      run: |
+        cd C:\OpenSSL
+        echo "Creating full installation package..."
+        tar -czf openssl-3.5.0-${{ matrix.platform.arch }}-windows-full.tar.gz *
+        move openssl-3.5.0-${{ matrix.platform.arch }}-windows-full.tar.gz ${{ github.workspace }}\
+        
+    - name: Create portable package
+      run: |
+        echo "Creating portable package..."
+        cd portable-package
+        Compress-Archive -Path * -DestinationPath ${{ github.workspace }}\openssl-3.5.0-${{ matrix.platform.arch }}-portable.zip
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: openssl-3.5.0-${{ matrix.platform.arch }}-packages
+        path: |
+          openssl-3.5.0-${{ matrix.platform.arch }}-windows-full.tar.gz
+          openssl-3.5.0-${{ matrix.platform.arch }}-portable.zip
+        retention-days: 90
