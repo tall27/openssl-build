@@ -1,4 +1,4 @@
-name: OpenSSL 3.5 (claude)
+name: OpenSSL 3.5 Build
 on:
   workflow_dispatch:
     inputs:
@@ -20,7 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: recursive
+          
+      - name: Download OpenSSL 3.5.0 Source
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/openssl/openssl/archive/refs/tags/openssl-3.5.0.zip" -OutFile "openssl.zip"
+          Expand-Archive -Path "openssl.zip" -DestinationPath "."
+          Rename-Item -Path "openssl-openssl-3.5.0" -NewName "openssl"
           
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
